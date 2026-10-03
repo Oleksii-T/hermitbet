@@ -44,3 +44,4 @@ yarn-error.log
 
 /playwright-report
 /test-results
+/storage/framework/phpstan/cache/
