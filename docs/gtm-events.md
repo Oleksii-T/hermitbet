@@ -21,6 +21,36 @@ during a spin do not emit this event.
 `navigation` refers to Vue component unmounting, not a browser/tab close.
 Delivery on a full browser unload is not guaranteed.
 
+## Cashier modal closure
+
+The cashier emits one `cashier_closed` event using the same closure methods
+as the game modal. Attempts blocked while a deposit or withdrawal is processing
+do not emit an event. Both cashier tabs use the same event name.
+
+| Property         | Meaning                                                         |
+| ---------------- | --------------------------------------------------------------- |
+| `cashier_tab`    | `deposit` or `withdraw` at closure                              |
+| `payment_method` | Selected deposit method: `card`, `bank`, `apple`, or `crypto`   |
+| `close_method`   | `button`, `escape`, `backdrop`, `programmatic`, or `navigation` |
+
+On the withdrawal tab, `payment_method` retains the selected deposit method;
+it is not a withdrawal provider.
+
+## Deposit method click selectors
+
+Each payment method button has a stable GTM class:
+
+| Method        | Class                |
+| ------------- | -------------------- |
+| Bank card     | `gtm-deposit-card`   |
+| Bank transfer | `gtm-deposit-bank`   |
+| Apple Pay     | `gtm-deposit-apple`  |
+| Crypto        | `gtm-deposit-crypto` |
+
+For example, configure a **Click – All Elements → Some Clicks** trigger with
+**Click Element → matches CSS selector → `.gtm-deposit-card, .gtm-deposit-card *`**.
+The second selector includes clicks on icons and text inside the button.
+
 ## Configure the GTM dashboard
 
 1. Create **Triggers → New → Custom Event**. Set the event name to exactly
@@ -41,6 +71,9 @@ Delivery on a full browser unload is not guaranteed.
 
 Pushing to the data layer does not automatically send an event to PostHog:
 the trigger and capture tag above must be configured in each relevant container.
+
+Repeat this setup for `cashier_closed`, mapping `cashier_tab`, `payment_method`,
+and `close_method` as Data Layer Variables/event properties.
 
 References: [GTM custom event triggers](https://support.google.com/tagmanager/answer/7679219?hl=en),
 [PostHog GTM integration](https://posthog.com/docs/libraries/google-tag-manager).

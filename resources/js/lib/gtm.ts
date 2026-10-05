@@ -1,4 +1,4 @@
-export type GameCloseMethod =
+export type ModalCloseMethod =
     | 'button'
     | 'escape'
     | 'backdrop'
@@ -9,7 +9,12 @@ type GtmEvents = {
     game_closed: {
         game_id: number;
         game_name: string;
-        close_method: GameCloseMethod;
+        close_method: ModalCloseMethod;
+    };
+    cashier_closed: {
+        cashier_tab: 'deposit' | 'withdraw';
+        payment_method: string;
+        close_method: ModalCloseMethod;
     };
 };
 
