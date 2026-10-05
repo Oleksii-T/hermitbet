@@ -1759,6 +1759,7 @@ h3,
 }
 .spin-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: end;
     gap: 23px;
     margin-top: 22px;
@@ -1792,6 +1793,48 @@ h3,
 .spin-button {
     min-width: 145px;
     height: 45px;
+}
+.spin-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.spin-settings-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 45px;
+    border: 1px solid #dce4ce;
+    border-radius: 8px;
+    color: #698062;
+    background: #f2f5e9;
+}
+.spin-settings-toggle:hover,
+.spin-settings-toggle.active {
+    color: #36543d;
+    background: #e4eccf;
+}
+.spin-settings-toggle:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+.spin-settings {
+    flex-basis: 100%;
+    border: 1px solid #e0e6d7;
+    border-radius: 10px;
+    padding: 14px;
+    background: #f2f5e9;
+}
+.spin-controls .spin-settings label {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+}
+.spin-settings p {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #698062;
 }
 .game-dialog .modal-footnote {
     margin-top: 17px;

@@ -22,7 +22,7 @@ HERMIT is a fictional casino playground for testing ideas, UI flows, and experim
 - **Accounts:** registration, login/logout, remember-me, and profile editing persist locally. Registration validates age 18+, phone, unique username/email, and password confirmation. Email verification is not required and no verification messages are sent. New accounts start with zero credits.
 - **Wallet:** deposits and withdrawals update demo credits and record activity. Card, bank, Apple Pay, and crypto are mock method labels. There are no payment gateways or real transfers. History returns the latest 30 transactions for the signed-in user.
 - **Bonuses:** `SHELL100` adds 100 demo credits and `ISLAND50` adds 50. Redemption is case-insensitive, once per user per code, and rejects inactive/expired codes.
-- **Gameplay:** every catalog game uses the same simulated spin logic in `app/SpinOutcome.php`: 0x (55%), 1x (25%), 2x (15%), or 5x (5%). Spins save a bet and win, debit the stake, and credit the payout. There are no actual provider games or category-specific engines.
+- **Gameplay:** every catalog game uses the same simulated spin logic in `app/SpinOutcome.php`: 0x (55%), 1x (25%), 2x (15%), or 5x (5%). Advanced settings beside Spin allow an exact demo payout: empty uses the random outcome, zero pays nothing, and a positive value pays that amount. Manual wins store a null multiplier and display “Manual payout.” Spins save a bet and win, debit the stake, and credit the payout. There are no actual provider games or category-specific engines.
 - **Low-funds experiment:** after a completed spin, the game shows a deposit/cancel prompt when the returned balance is below the current bet amount. Deposit opens the demo cashier; cancel (including Escape/backdrop dismissal) keeps the game open and snoozes the prompt for 20 minutes using a session-storage expiry.
 - **Tournaments:** joining saves account membership and rejects ended events. Prize pools are fictional; there is no scoring, leaderboard, or prize distribution.
 - **UI-only extras:** favorites are component-local and do not persist. Help, support, and social buttons show preview notifications.
@@ -42,6 +42,8 @@ All endpoints below return JSON except tournament joining, which redirects back.
 | POST   | `/tournaments/{tournament}/join`      | Save membership           |
 
 Balances, transaction amounts, bets, wins, bonus amounts, and prize pools are stored in **integer hundredths of a demo credit** (100 = 1.00 DC). Transfer/spin requests send decimal `amount` and a UUID `request_id`; deposits also send `method`. Wallet amounts accept 1–10,000 DC, spins 0.10–100 DC, with at most two decimals.
+
+Spins optionally accept decimal `win_amount`: missing, null, or empty keeps the random roll; zero or a positive value sets the exact payout. It accepts at most two decimals and up to 42,949,672.95 DC (the stored win amount's unsigned integer limit). The stake still requires sufficient balance, and retries return the original outcome regardless of any changed override.
 
 `app/WalletOperation.php` converts amounts and records balance changes, rejecting insufficient credits. Transfer, bonus, and spin controllers use database transactions and user row locks. Transfers and spins deduplicate requests by user/request UUID. Preserve these behaviors when experimenting with balances or retries.
 

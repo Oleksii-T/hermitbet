@@ -241,18 +241,87 @@ test('does not replay a spin with the same request key', function () {
     $data = ['amount' => '1', 'request_id' => (string) Str::uuid()];
     $this->actingAs($user)->postJson(route('spin.store', $game), $data)->assertCreated();
 
-    $this->postJson(route('spin.store', $game), $data)->assertOk()->assertJsonPath('user.balance', 10100)->assertJsonPath('win.amount', 200);
+    $this->postJson(route('spin.store', $game), [...$data, 'win_amount' => '0'])->assertOk()->assertJsonPath('user.balance', 10100)->assertJsonPath('win.amount', 200);
 
     $this->assertDatabaseCount('bets', 1);
     $this->assertDatabaseCount('wins', 1);
     $this->assertDatabaseCount('wallet_transactions', 2);
 });
 
+test('rolls the dice when the manual payout is omitted null or empty', function (array $override) {
+    $user = explorerWithCredits();
+    $game = Game::factory()->create();
+    $this->mock(SpinOutcome::class, fn (MockInterface $mock) => $mock->shouldReceive('multiplier')->once()->andReturn(2));
+
+    $this->actingAs($user)->postJson(route('spin.store', $game), [
+        'amount' => '2.50', 'request_id' => (string) Str::uuid(), ...$override,
+    ])->assertCreated()->assertJsonPath('win.amount', 500)->assertJsonPath('win.multiplier', 2)->assertJsonPath('user.balance', 10250);
+})->with([
+    'omitted' => [[]],
+    'null' => [['win_amount' => null]],
+    'empty' => [['win_amount' => '']],
+]);
+
+test('pays the exact manual amount without rolling the dice', function (string|int $winAmount, int $payout) {
+    $user = explorerWithCredits();
+    $game = Game::factory()->create();
+    $this->mock(SpinOutcome::class, fn (MockInterface $mock) => $mock->shouldNotReceive('multiplier'));
+
+    $this->actingAs($user)->postJson(route('spin.store', $game), [
+        'amount' => '2.50', 'win_amount' => $winAmount, 'request_id' => (string) Str::uuid(),
+    ])->assertCreated()->assertJsonPath('win.amount', $payout)->assertJsonPath('win.multiplier', null)->assertJsonPath('user.balance', 9750 + $payout);
+
+    $bet = Bet::firstOrFail();
+    $this->assertDatabaseHas('bets', ['id' => $bet->id, 'amount' => 250]);
+    $this->assertDatabaseHas('wins', ['bet_id' => $bet->id, 'amount' => $payout, 'multiplier' => null]);
+    $this->assertDatabaseHas('wallet_transactions', ['user_id' => $user->id, 'type' => 'win', 'amount' => $payout, 'balance_after' => 9750 + $payout]);
+    $this->assertDatabaseCount('wallet_transactions', 2);
+    expect($user->fresh()->balance)->toBe(9750 + $payout);
+})->with([
+    'numeric zero' => [0, 0],
+    'string zero' => ['0', 0],
+    'decimal zero' => ['0.00', 0],
+    'fractional payout' => ['1.37', 137],
+    'larger than stake' => ['7.31', 731],
+    'numeric positive' => [5, 500],
+    'maximum stored payout' => ['42949672.95', 4294967295],
+]);
+
+test('preserves a manual outcome when its request key is retried with a different override', function () {
+    $user = explorerWithCredits();
+    $game = Game::factory()->create();
+    $this->mock(SpinOutcome::class, fn (MockInterface $mock) => $mock->shouldNotReceive('multiplier'));
+    $data = ['amount' => '1', 'win_amount' => '0', 'request_id' => (string) Str::uuid()];
+    $this->actingAs($user)->postJson(route('spin.store', $game), $data)->assertCreated();
+
+    $this->postJson(route('spin.store', $game), [...$data, 'win_amount' => '7.31'])->assertOk()->assertJsonPath('user.balance', 9900)->assertJsonPath('win.amount', 0)->assertJsonPath('win.multiplier', null);
+    $this->postJson(route('spin.store', $game), [...$data, 'win_amount' => ''])->assertOk()->assertJsonPath('user.balance', 9900)->assertJsonPath('win.amount', 0);
+
+    $this->assertDatabaseCount('bets', 1);
+    $this->assertDatabaseCount('wins', 1);
+    $this->assertDatabaseCount('wallet_transactions', 2);
+});
+
+test('rejects invalid manual payouts without changing credits or rolling the dice', function (mixed $winAmount) {
+    $user = explorerWithCredits();
+    $game = Game::factory()->create();
+    $this->mock(SpinOutcome::class, fn (MockInterface $mock) => $mock->shouldNotReceive('multiplier'));
+
+    $this->actingAs($user)->postJson(route('spin.store', $game), [
+        'amount' => '1', 'win_amount' => $winAmount, 'request_id' => (string) Str::uuid(),
+    ])->assertUnprocessable()->assertJsonValidationErrors('win_amount');
+
+    $this->assertDatabaseCount('bets', 0);
+    $this->assertDatabaseCount('wins', 0);
+    $this->assertDatabaseCount('wallet_transactions', 0);
+    expect($user->fresh()->balance)->toBe(10000);
+})->with(['-0.01', '1.001', 'not-a-number', '42949672.96', true, [['unexpected']]]);
+
 test('returns 422 for a spin with insufficient funds and leaves no partial bet or win', function () {
     $user = explorerWithCredits(50);
     $game = Game::factory()->create();
 
-    $this->actingAs($user)->postJson(route('spin.store', $game), ['amount' => '1', 'request_id' => (string) Str::uuid()])->assertUnprocessable()->assertJsonValidationErrors('amount');
+    $this->actingAs($user)->postJson(route('spin.store', $game), ['amount' => '1', 'win_amount' => '100', 'request_id' => (string) Str::uuid()])->assertUnprocessable()->assertJsonValidationErrors('amount');
 
     $this->assertDatabaseCount('bets', 0);
     $this->assertDatabaseCount('wins', 0);

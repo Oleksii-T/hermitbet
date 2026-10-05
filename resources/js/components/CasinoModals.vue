@@ -17,6 +17,7 @@ import {
     LogOut,
     ShieldCheck,
     Sparkles,
+    Settings2,
 } from 'lucide-vue-next';
 import { login, register, logout } from '@/routes';
 import { update as updateProfile } from '@/routes/profile';
@@ -46,7 +47,7 @@ type Reply = {
     message?: string;
     transactions?: Transaction[];
     bet?: { id: number; amount: number };
-    win?: { amount: number; multiplier: number };
+    win?: { amount: number; multiplier: number | null };
 };
 const dialog = ref<HTMLDialogElement>();
 const lowFundsDialog = ref<HTMLDialogElement>();
@@ -60,6 +61,7 @@ const networkError = ref('');
 const transactions = ref<Transaction[]>([]);
 const result = ref<Reply['win'] | null>(null);
 const spinning = ref(false);
+const advancedSpin = ref(false);
 let trackedModal:
     | { type: 'game'; game: Pick<Game, 'id' | 'name'> }
     | { type: 'cashier' }
@@ -95,8 +97,12 @@ const cashier = useHttp<
     Reply
 >({ amount: '100', method: 'card', request_id: '' });
 const bonus = useHttp<{ code: string }, Reply>({ code: '' });
-const spin = useHttp<{ amount: string; request_id: string }, Reply>({
+const spin = useHttp<
+    { amount: string; win_amount: string; request_id: string },
+    Reply
+>({
     amount: '1',
+    win_amount: '',
     request_id: '',
 });
 const history = useHttp<Record<string, never>, Reply>({});
@@ -358,7 +364,7 @@ watch(
     },
 );
 watch(
-    () => spin.amount,
+    () => [spin.amount, spin.win_amount],
     () => {
         spin.request_id = '';
         spin.clearErrors();
@@ -840,8 +846,12 @@ onBeforeUnmount(() => {
                                 : 'No win this spin'
                         }}</strong
                         ><small
-                            >{{ result.multiplier }}× multiplier · Demo
-                            result</small
+                            >{{
+                                result.multiplier === null
+                                    ? 'Manual payout'
+                                    : result.multiplier + '× multiplier'
+                            }}
+                            · Demo result</small
                         >
                     </div>
                     <span class="stage-watermark">HERMIT ORIGINALS</span>
@@ -869,15 +879,67 @@ onBeforeUnmount(() => {
                                 :disabled="spinning"
                             /><span>DC</span>
                         </div></label
-                    ><button
-                        class="button-primary spin-button"
-                        :disabled="spinning"
                     >
-                        <RefreshCw
-                            :size="20"
-                            :class="{ 'animate-spin': spinning }"
-                        />{{ spinning ? 'Spinning…' : 'Spin' }}
-                    </button>
+                    <div class="spin-actions">
+                        <button
+                            class="button-primary spin-button"
+                            :disabled="spinning"
+                        >
+                            <RefreshCw
+                                :size="20"
+                                :class="{ 'animate-spin': spinning }"
+                            />{{ spinning ? 'Spinning…' : 'Spin' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="spin-settings-toggle"
+                            :class="{ active: spin.win_amount !== '' }"
+                            aria-label="Advanced spin settings"
+                            :aria-expanded="advancedSpin"
+                            aria-controls="spin-settings"
+                            :title="
+                                spin.win_amount === ''
+                                    ? 'Advanced spin settings'
+                                    : 'Manual payout: ' +
+                                      spin.win_amount +
+                                      ' DC'
+                            "
+                            :disabled="spinning"
+                            @click="advancedSpin = !advancedSpin"
+                        >
+                            <Settings2 :size="18" />
+                        </button>
+                    </div>
+                    <div
+                        v-show="advancedSpin"
+                        id="spin-settings"
+                        class="spin-settings"
+                    >
+                        <label>
+                            Win amount
+                            <div class="amount-input">
+                                <input
+                                    v-model="spin.win_amount"
+                                    aria-label="Win amount"
+                                    aria-describedby="spin-settings-hint"
+                                    name="win_amount"
+                                    type="number"
+                                    min="0"
+                                    max="42949672.95"
+                                    step="0.01"
+                                    placeholder="Random outcome"
+                                    :disabled="spinning"
+                                /><span>DC</span>
+                            </div>
+                        </label>
+                        <p id="spin-settings-hint">
+                            Exact demo payout. Leave empty for random; 0 means
+                            no win.
+                        </p>
+                        <span class="field-error">{{
+                            spin.errors.win_amount
+                        }}</span>
+                    </div>
                 </form>
                 <span class="field-error">{{ spin.errors.amount }}</span>
                 <p class="modal-footnote">
