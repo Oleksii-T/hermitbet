@@ -1,4 +1,4 @@
-export type GameCloseMethod =
+export type ModalCloseMethod =
     | 'button'
     | 'escape'
     | 'backdrop'
@@ -9,7 +9,12 @@ type GtmEvents = {
     game_closed: {
         game_id: number;
         game_name: string;
-        close_method: GameCloseMethod;
+        close_method: ModalCloseMethod;
+    };
+    cashier_closed: {
+        cashier_tab: 'deposit' | 'withdraw';
+        payment_method: string;
+        close_method: ModalCloseMethod;
     };
 };
 
@@ -18,6 +23,8 @@ export function trackGtmEvent<Event extends keyof GtmEvents>(
     event: Event,
     properties: GtmEvents[Event],
 ): void {
+    console.log('GTM Custom Event', event, properties);
+
     if (typeof window === 'undefined') return;
 
     (window.dataLayer ??= []).push({ ...properties, event });

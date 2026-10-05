@@ -13,7 +13,7 @@ HERMIT is a fictional casino playground for testing ideas, UI flows, and experim
 - `resources/js/components/CasinoModals.vue` contains account, profile, cashier, wallet, bonus, and simulated game dialogs. It uses Inertia `useHttp` for JSON requests; page navigation and tournament joining use the Inertia router.
 - `resources/js/components/GameCard.vue` renders game cards. `resources/js/types/casino.ts` and `types/auth.ts` define frontend data shapes.
 - `resources/css/app.css` contains the casino styling. `public/images/hermit-island.png` is the hero; `game-atlas.png` supplies 12 game-art tiles via `artStyle()`.
-- `resources/js/lib/gtm.ts` queues typed custom events into `window.dataLayer`. The game modal emits `game_closed` with the game ID/name and close method after closing; `docs/gtm-events.md` describes the GTM trigger and PostHog tag setup.
+- `resources/js/lib/gtm.ts` queues typed custom events into `window.dataLayer`. Game and cashier modals emit `game_closed` and `cashier_closed` after closing. Deposit method buttons have `gtm-deposit-{card,bank,apple,crypto}` classes; `docs/gtm-events.md` describes event properties and GTM/PostHog setup.
 - Wayfinder generates typed route helpers imported from `@/routes`. Change Laravel routes and regenerate helpers rather than editing generated files.
 
 ## Main features and limitations

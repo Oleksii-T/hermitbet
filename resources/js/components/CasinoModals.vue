@@ -24,7 +24,7 @@ import { deposit, withdraw, index as walletIndex } from '@/routes/wallet';
 import { store as redeemBonus } from '@/routes/bonuses';
 import { store as spinGame } from '@/routes/spin';
 import { artStyle, credits, type Game, type Transaction } from '@/types/casino';
-import { trackGtmEvent, type GameCloseMethod } from '@/lib/gtm';
+import { trackGtmEvent, type ModalCloseMethod } from '@/lib/gtm';
 import type { User } from '@/types/auth';
 const props = defineProps<{
     modal: string | null;
@@ -45,14 +45,17 @@ type Reply = {
     win?: { amount: number; multiplier: number };
 };
 const dialog = ref<HTMLDialogElement>();
-const tab = ref('deposit');
+const tab = ref<'deposit' | 'withdraw'>('deposit');
 const message = ref('');
 const networkError = ref('');
 const transactions = ref<Transaction[]>([]);
 const result = ref<Reply['win'] | null>(null);
 const spinning = ref(false);
-let activeGame: Pick<Game, 'id' | 'name'> | null = null;
-let gameCloseMethod: GameCloseMethod = 'programmatic';
+let trackedModal:
+    | { type: 'game'; game: Pick<Game, 'id' | 'name'> }
+    | { type: 'cashier' }
+    | null = null;
+let modalCloseMethod: ModalCloseMethod = 'programmatic';
 const auth = useHttp<
     {
         username: string;
@@ -193,28 +196,36 @@ async function logOut() {
         networkError.value = 'Could not log out. Please try again.';
     }
 }
-function closeModal(method: GameCloseMethod) {
+function closeModal(method: ModalCloseMethod) {
     if (auth.processing || cashier.processing || spinning.value) return;
 
-    gameCloseMethod = method;
+    modalCloseMethod = method;
     emit('close');
 }
-function trackGameClosed(method = gameCloseMethod) {
-    if (!activeGame) return;
+function trackModalClosed(method = modalCloseMethod) {
+    if (!trackedModal) return;
 
-    const game = activeGame;
-    activeGame = null;
-    gameCloseMethod = 'programmatic';
-    trackGtmEvent('game_closed', {
-        game_id: game.id,
-        game_name: game.name,
-        close_method: method,
-    });
+    const closed = trackedModal;
+    trackedModal = null;
+    modalCloseMethod = 'programmatic';
+    if (closed.type === 'game') {
+        trackGtmEvent('game_closed', {
+            game_id: closed.game.id,
+            game_name: closed.game.name,
+            close_method: method,
+        });
+    } else {
+        trackGtmEvent('cashier_closed', {
+            cashier_tab: tab.value,
+            payment_method: cashier.method,
+            close_method: method,
+        });
+    }
 }
 function onDialogClosed() {
     // A queued native close event may arrive after the dialog has reopened.
     if (dialog.value?.open) return;
-    trackGameClosed();
+    trackModalClosed();
     if (props.modal) emit('close');
 }
 watch(
@@ -230,6 +241,8 @@ watch(
         spin.clearErrors();
         await nextTick();
         if (modal) {
+            // Replacing a game or cashier view also closes that modal.
+            if (trackedModal?.type !== modal) trackModalClosed();
             if (!dialog.value?.open) dialog.value?.showModal();
             document.body.style.overflow = 'hidden';
             if (modal === 'profile' && props.user) {
@@ -238,20 +251,24 @@ watch(
                 profile.phone = props.user.phone;
             }
             if (modal === 'wallet') void loadHistory();
-            if (modal === 'cashier') tab.value = 'deposit';
+            if (modal === 'cashier') {
+                tab.value = 'deposit';
+                trackedModal = { type: 'cashier' };
+                modalCloseMethod = 'programmatic';
+            }
             if (modal === 'game') {
                 spin.request_id = '';
                 if (props.game) {
-                    activeGame = { id: props.game.id, name: props.game.name };
-                    gameCloseMethod = 'programmatic';
+                    trackedModal = {
+                        type: 'game',
+                        game: { id: props.game.id, name: props.game.name },
+                    };
+                    modalCloseMethod = 'programmatic';
                 }
-            } else {
-                // Switching to another modal also ends the game view.
-                trackGameClosed();
             }
         } else {
             dialog.value?.close();
-            trackGameClosed();
+            trackModalClosed();
             document.body.style.overflow = '';
         }
     },
@@ -272,7 +289,7 @@ watch(
     },
 );
 onBeforeUnmount(() => {
-    trackGameClosed('navigation');
+    trackModalClosed('navigation');
     document.body.style.overflow = '';
 });
 </script>
@@ -531,9 +548,10 @@ onBeforeUnmount(() => {
                                 v-for="method in paymentMethods"
                                 :key="method.id"
                                 type="button"
-                                :class="{
-                                    selected: cashier.method === method.id,
-                                }"
+                                :class="[
+                                    `gtm-deposit-${method.id}`,
+                                    { selected: cashier.method === method.id },
+                                ]"
                                 :aria-pressed="cashier.method === method.id"
                                 @click="cashier.method = method.id"
                             >
