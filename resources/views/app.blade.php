@@ -17,7 +17,25 @@
             posthog.init('phc_u7kwLeJoUnCxxheCZp5kaab8ryu4TW8pzdKg9FsFkdNw', {
                 api_host: 'https://us.i.posthog.com',
                 defaults: '2026-05-30',
-                person_profiles: 'identified_only',
+                person_profiles: 'always', // 'identified_only' or 'always'
+                // Only the Playwright simulator injects these properties.
+                request_batching: !window.__hermitSimulation,
+                opt_out_useragent_filter: !!window.__hermitSimulation,
+                before_send: function(event) {
+                    if (window.__hermitSimulation && event) {
+                        Object.assign(event.properties, window.__hermitSimulation);
+                    }
+                    return event;
+                },
+                loaded: function(client) {
+                    if (!window.__hermitSimulation) return;
+                    client.register(window.__hermitSimulation);
+                    var savedUser = sessionStorage.getItem('hermit-simulation-user');
+                    if (savedUser) {
+                        var user = JSON.parse(savedUser);
+                        client.identify('preview-user-' + user.id, { email: user.email, simulation: true });
+                    }
+                },
             })
         </script>
 

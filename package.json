@@ -9,7 +9,10 @@
         "check": "vp check",
         "check:fix": "vp check --fix",
         "types:check": "vue-tsc --noEmit",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "simulate": "node scripts/simulation/start.mjs",
+        "simulate:check": "tsc -p scripts/simulation/tsconfig.json --noEmit",
+        "simulate:test": "tsc -p scripts/simulation/tsconfig.json && node --test .simulation-build/core.test.js"
     },
     "dependencies": {
         "@inertiajs/vite": "^3.0.0",
