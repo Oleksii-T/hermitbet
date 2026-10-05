@@ -36,7 +36,6 @@ yarn-error.log
 /.kiro
 /.pi
 /.mcp.json
-/AGENTS.md
 /CLAUDE.md
 /boost.json
 /opencode.json
@@ -44,4 +43,7 @@ yarn-error.log
 
 /playwright-report
 /test-results
+/.simulation-build
+/storage/app/simulations
+/storage/app/simulation-test
 /storage/framework/phpstan/cache/
