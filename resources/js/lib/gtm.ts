@@ -23,6 +23,8 @@ export function trackGtmEvent<Event extends keyof GtmEvents>(
     event: Event,
     properties: GtmEvents[Event],
 ): void {
+    console.log('GTM Custom Event', event, properties);
+
     if (typeof window === 'undefined') return;
 
     (window.dataLayer ??= []).push({ ...properties, event });
