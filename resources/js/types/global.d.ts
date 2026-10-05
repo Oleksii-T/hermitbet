@@ -1,6 +1,12 @@
 import type { Directive } from 'vue';
 import type { Auth } from '@/types/auth';
 
+declare global {
+    interface Window {
+        dataLayer?: Record<string, unknown>[];
+    }
+}
+
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
     interface ImportMetaEnv {

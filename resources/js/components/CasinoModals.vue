@@ -24,6 +24,7 @@ import { deposit, withdraw, index as walletIndex } from '@/routes/wallet';
 import { store as redeemBonus } from '@/routes/bonuses';
 import { store as spinGame } from '@/routes/spin';
 import { artStyle, credits, type Game, type Transaction } from '@/types/casino';
+import { trackGtmEvent, type GameCloseMethod } from '@/lib/gtm';
 import type { User } from '@/types/auth';
 const props = defineProps<{
     modal: string | null;
@@ -50,6 +51,8 @@ const networkError = ref('');
 const transactions = ref<Transaction[]>([]);
 const result = ref<Reply['win'] | null>(null);
 const spinning = ref(false);
+let activeGame: Pick<Game, 'id' | 'name'> | null = null;
+let gameCloseMethod: GameCloseMethod = 'programmatic';
 const auth = useHttp<
     {
         username: string;
@@ -190,9 +193,29 @@ async function logOut() {
         networkError.value = 'Could not log out. Please try again.';
     }
 }
-function closeModal() {
-    if (!auth.processing && !cashier.processing && !spinning.value)
-        emit('close');
+function closeModal(method: GameCloseMethod) {
+    if (auth.processing || cashier.processing || spinning.value) return;
+
+    gameCloseMethod = method;
+    emit('close');
+}
+function trackGameClosed(method = gameCloseMethod) {
+    if (!activeGame) return;
+
+    const game = activeGame;
+    activeGame = null;
+    gameCloseMethod = 'programmatic';
+    trackGtmEvent('game_closed', {
+        game_id: game.id,
+        game_name: game.name,
+        close_method: method,
+    });
+}
+function onDialogClosed() {
+    // A queued native close event may arrive after the dialog has reopened.
+    if (dialog.value?.open) return;
+    trackGameClosed();
+    if (props.modal) emit('close');
 }
 watch(
     () => props.modal,
@@ -216,9 +239,19 @@ watch(
             }
             if (modal === 'wallet') void loadHistory();
             if (modal === 'cashier') tab.value = 'deposit';
-            if (modal === 'game') spin.request_id = '';
+            if (modal === 'game') {
+                spin.request_id = '';
+                if (props.game) {
+                    activeGame = { id: props.game.id, name: props.game.name };
+                    gameCloseMethod = 'programmatic';
+                }
+            } else {
+                // Switching to another modal also ends the game view.
+                trackGameClosed();
+            }
         } else {
             dialog.value?.close();
+            trackGameClosed();
             document.body.style.overflow = '';
         }
     },
@@ -239,6 +272,7 @@ watch(
     },
 );
 onBeforeUnmount(() => {
+    trackGameClosed('navigation');
     document.body.style.overflow = '';
 });
 </script>
@@ -248,14 +282,15 @@ onBeforeUnmount(() => {
         class="casino-dialog"
         :class="{ 'game-dialog': modal === 'game' }"
         aria-labelledby="modal-title"
-        @cancel.prevent="closeModal"
-        @click="$event.target === dialog && closeModal()"
+        @cancel.prevent="closeModal('escape')"
+        @click="$event.target === dialog && closeModal('backdrop')"
+        @close="onDialogClosed"
     >
         <div class="modal-inner">
             <button
                 class="modal-close"
                 aria-label="Close modal"
-                @click="closeModal"
+                @click="closeModal('button')"
             >
                 <X :size="21" />
             </button>
