@@ -23,6 +23,7 @@ HERMIT is a fictional casino playground for testing ideas, UI flows, and experim
 - **Wallet:** deposits and withdrawals update demo credits and record activity. Card, bank, Apple Pay, and crypto are mock method labels. There are no payment gateways or real transfers. History returns the latest 30 transactions for the signed-in user.
 - **Bonuses:** `SHELL100` adds 100 demo credits and `ISLAND50` adds 50. Redemption is case-insensitive, once per user per code, and rejects inactive/expired codes.
 - **Gameplay:** every catalog game uses the same simulated spin logic in `app/SpinOutcome.php`: 0x (55%), 1x (25%), 2x (15%), or 5x (5%). Spins save a bet and win, debit the stake, and credit the payout. There are no actual provider games or category-specific engines.
+- **Low-funds experiment:** after a completed spin, the game shows a deposit/cancel prompt when the returned balance is below the current bet amount. Deposit opens the demo cashier; cancel (including Escape/backdrop dismissal) keeps the game open and snoozes the prompt for 20 minutes using a session-storage expiry.
 - **Tournaments:** joining saves account membership and rejects ended events. Prize pools are fictional; there is no scoring, leaderboard, or prize distribution.
 - **UI-only extras:** favorites are component-local and do not persist. Help, support, and social buttons show preview notifications.
 

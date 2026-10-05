@@ -45,6 +45,10 @@ type Reply = {
     win?: { amount: number; multiplier: number };
 };
 const dialog = ref<HTMLDialogElement>();
+const lowFundsDialog = ref<HTMLDialogElement>();
+const lowFundsSnoozeKey = 'hermit.low-funds.snoozed-until';
+const lowFundsSnoozeDuration = 20 * 60 * 1000;
+let lowFundsSnoozedUntil = 0;
 const tab = ref('deposit');
 const message = ref('');
 const networkError = ref('');
@@ -180,11 +184,45 @@ async function submitSpin() {
         result.value = response.win;
         emit('updated', response.user);
         spin.request_id = '';
+        onSpinWin(response);
     } catch {
         failure();
     } finally {
         spinning.value = false;
     }
+}
+function onSpinWin(response: Reply) {
+    if (props.modal !== 'game' || !response.win || !response.user) return;
+
+    const intendedAmount = Math.round(Number(spin.amount) * 100);
+    if (!Number.isFinite(intendedAmount) || intendedAmount <= 0) return;
+    if (response.user.balance >= intendedAmount) return;
+
+    try {
+        lowFundsSnoozedUntil = Number(
+            sessionStorage.getItem(lowFundsSnoozeKey) ?? lowFundsSnoozedUntil,
+        );
+    } catch {
+        // Keep the snooze in memory when browser storage is unavailable.
+    }
+    if (Date.now() < lowFundsSnoozedUntil) return;
+
+    if (!lowFundsDialog.value?.open) lowFundsDialog.value?.showModal();
+}
+function cancelLowFunds() {
+    if (!lowFundsDialog.value?.open) return;
+
+    lowFundsSnoozedUntil = Date.now() + lowFundsSnoozeDuration;
+    try {
+        sessionStorage.setItem(lowFundsSnoozeKey, String(lowFundsSnoozedUntil));
+    } catch {
+        // The in-memory snooze still applies for this page visit.
+    }
+    lowFundsDialog.value.close();
+}
+function depositLowFunds() {
+    lowFundsDialog.value?.close();
+    emit('open', 'cashier');
 }
 async function logOut() {
     try {
@@ -220,6 +258,7 @@ function onDialogClosed() {
 watch(
     () => props.modal,
     async (modal) => {
+        lowFundsDialog.value?.close();
         message.value = '';
         networkError.value = '';
         result.value = null;
@@ -795,6 +834,32 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="networkError" class="field-error" role="alert">
                 {{ networkError }}
+            </div>
+        </div>
+    </dialog>
+    <dialog
+        ref="lowFundsDialog"
+        class="casino-dialog"
+        aria-labelledby="low-funds-title"
+        aria-describedby="low-funds-description"
+        @cancel.prevent="cancelLowFunds"
+        @click="$event.target === lowFundsDialog && cancelLowFunds()"
+    >
+        <div class="modal-inner">
+            <div class="modal-icon"><Wallet :size="27" /></div>
+            <span class="eyebrow">YOUR DEMO WALLET</span>
+            <h2 id="low-funds-title">You're running out of funds.</h2>
+            <p id="low-funds-description" class="modal-description">
+                Your demo balance is too low for another spin at this bet
+                amount. Add demo credits to keep playing.
+            </p>
+            <div class="wallet-actions">
+                <button class="button-primary" @click="depositLowFunds">
+                    Deposit<ArrowRight :size="17" />
+                </button>
+                <button class="button-outline" @click="cancelLowFunds">
+                    Cancel
+                </button>
             </div>
         </div>
     </dialog>
