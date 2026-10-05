@@ -36,6 +36,34 @@ do not emit an event. Both cashier tabs use the same event name.
 On the withdrawal tab, `payment_method` retains the selected deposit method;
 it is not a withdrawal provider.
 
+## Low-funds modal
+
+The low-funds experiment emits these custom events:
+
+| Event                       | When it fires                                         |
+| --------------------------- | ----------------------------------------------------- |
+| `low_funds_shown`           | After the prompt actually opens                       |
+| `low_funds_closed`          | Once per dismissal, replacement, or component unmount |
+| `low_funds_deposit_clicked` | When Deposit is clicked, before the prompt closes     |
+
+All three events include a snapshot taken when the prompt opened:
+
+| Property       | Meaning                                                     |
+| -------------- | ----------------------------------------------------------- |
+| `game_id`      | Catalog game ID                                             |
+| `game_name`    | Catalog game name                                           |
+| `demo_balance` | Post-spin balance in integer hundredths of a demo credit    |
+| `bet_amount`   | Intended next spin amount in integer hundredths of a credit |
+
+For example, `bet_amount: 100` means a 1.00 DC bet.
+`low_funds_closed` also includes `close_method`: `button` (Cancel), `escape`,
+`backdrop`, `deposit`, `programmatic`, or `navigation` (Vue component unmount).
+Deposit emits `low_funds_deposit_clicked`, then `low_funds_closed` with
+`close_method: 'deposit'`, and opens the cashier. Cancel, Escape, and backdrop
+dismissal retain the existing 20-minute snooze. A snoozed prompt and failed
+spins emit no low-funds events. Dismissing this prompt leaves the game open
+and does not emit `game_closed`; switching to the cashier still closes the game.
+
 ## Deposit method click selectors
 
 Each payment method button has a stable GTM class:
@@ -74,6 +102,10 @@ the trigger and capture tag above must be configured in each relevant container.
 
 Repeat this setup for `cashier_closed`, mapping `cashier_tab`, `payment_method`,
 and `close_method` as Data Layer Variables/event properties.
+
+For the low-funds experiment, use the three event names above as separate
+Custom Event triggers and map `game_id`, `game_name`, `demo_balance`, and
+`bet_amount` to the capture tags. Include `close_method` on `low_funds_closed`.
 
 References: [GTM custom event triggers](https://support.google.com/tagmanager/answer/7679219?hl=en),
 [PostHog GTM integration](https://posthog.com/docs/libraries/google-tag-manager).

@@ -24,7 +24,11 @@ import { deposit, withdraw, index as walletIndex } from '@/routes/wallet';
 import { store as redeemBonus } from '@/routes/bonuses';
 import { store as spinGame } from '@/routes/spin';
 import { artStyle, credits, type Game, type Transaction } from '@/types/casino';
-import { trackGtmEvent, type ModalCloseMethod } from '@/lib/gtm';
+import {
+    trackGtmEvent,
+    type ModalCloseMethod,
+    type LowFundsEventProperties,
+} from '@/lib/gtm';
 import type { User } from '@/types/auth';
 const props = defineProps<{
     modal: string | null;
@@ -49,6 +53,7 @@ const lowFundsDialog = ref<HTMLDialogElement>();
 const lowFundsSnoozeKey = 'hermit.low-funds.snoozed-until';
 const lowFundsSnoozeDuration = 20 * 60 * 1000;
 let lowFundsSnoozedUntil = 0;
+let trackedLowFunds: LowFundsEventProperties | null = null;
 const tab = ref<'deposit' | 'withdraw'>('deposit');
 const message = ref('');
 const networkError = ref('');
@@ -195,7 +200,13 @@ async function submitSpin() {
     }
 }
 function onSpinWin(response: Reply) {
-    if (props.modal !== 'game' || !response.win || !response.user) return;
+    if (
+        props.modal !== 'game' ||
+        !props.game ||
+        !response.win ||
+        !response.user
+    )
+        return;
 
     const intendedAmount = Math.round(Number(spin.amount) * 100);
     if (!Number.isFinite(intendedAmount) || intendedAmount <= 0) return;
@@ -210,9 +221,33 @@ function onSpinWin(response: Reply) {
     }
     if (Date.now() < lowFundsSnoozedUntil) return;
 
-    if (!lowFundsDialog.value?.open) lowFundsDialog.value?.showModal();
+    if (!lowFundsDialog.value || lowFundsDialog.value.open) return;
+    lowFundsDialog.value.showModal();
+    trackedLowFunds = {
+        game_id: props.game.id,
+        game_name: props.game.name,
+        demo_balance: response.user.balance,
+        bet_amount: intendedAmount,
+    };
+    trackGtmEvent('low_funds_shown', trackedLowFunds);
 }
-function cancelLowFunds() {
+function trackLowFundsClosed(method: ModalCloseMethod | 'deposit') {
+    if (!trackedLowFunds) return;
+
+    const closed = trackedLowFunds;
+    trackedLowFunds = null;
+    trackGtmEvent('low_funds_closed', { ...closed, close_method: method });
+}
+function closeLowFunds(method: ModalCloseMethod | 'deposit') {
+    lowFundsDialog.value?.close();
+    trackLowFundsClosed(method);
+}
+function onLowFundsDialogClosed() {
+    // Ignore a queued close event if the prompt has already reopened.
+    if (lowFundsDialog.value?.open) return;
+    trackLowFundsClosed('programmatic');
+}
+function cancelLowFunds(method: 'button' | 'escape' | 'backdrop') {
     if (!lowFundsDialog.value?.open) return;
 
     lowFundsSnoozedUntil = Date.now() + lowFundsSnoozeDuration;
@@ -221,10 +256,12 @@ function cancelLowFunds() {
     } catch {
         // The in-memory snooze still applies for this page visit.
     }
-    lowFundsDialog.value.close();
+    closeLowFunds(method);
 }
 function depositLowFunds() {
-    lowFundsDialog.value?.close();
+    if (!lowFundsDialog.value?.open || !trackedLowFunds) return;
+    trackGtmEvent('low_funds_deposit_clicked', trackedLowFunds);
+    closeLowFunds('deposit');
     emit('open', 'cashier');
 }
 async function logOut() {
@@ -269,7 +306,7 @@ function onDialogClosed() {
 watch(
     () => props.modal,
     async (modal) => {
-        lowFundsDialog.value?.close();
+        closeLowFunds('programmatic');
         message.value = '';
         networkError.value = '';
         result.value = null;
@@ -328,6 +365,7 @@ watch(
     },
 );
 onBeforeUnmount(() => {
+    trackLowFundsClosed('navigation');
     trackModalClosed('navigation');
     document.body.style.overflow = '';
 });
@@ -860,8 +898,9 @@ onBeforeUnmount(() => {
         class="casino-dialog"
         aria-labelledby="low-funds-title"
         aria-describedby="low-funds-description"
-        @cancel.prevent="cancelLowFunds"
-        @click="$event.target === lowFundsDialog && cancelLowFunds()"
+        @cancel.prevent="cancelLowFunds('escape')"
+        @click="$event.target === lowFundsDialog && cancelLowFunds('backdrop')"
+        @close="onLowFundsDialogClosed"
     >
         <div class="modal-inner">
             <div class="modal-icon"><Wallet :size="27" /></div>
@@ -875,7 +914,10 @@ onBeforeUnmount(() => {
                 <button class="button-primary" @click="depositLowFunds">
                     Deposit<ArrowRight :size="17" />
                 </button>
-                <button class="button-outline" @click="cancelLowFunds">
+                <button
+                    class="button-outline"
+                    @click="cancelLowFunds('button')"
+                >
                     Cancel
                 </button>
             </div>

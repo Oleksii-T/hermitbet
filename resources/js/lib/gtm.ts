@@ -5,7 +5,19 @@ export type ModalCloseMethod =
     | 'programmatic'
     | 'navigation';
 
+export type LowFundsEventProperties = {
+    game_id: number;
+    game_name: string;
+    demo_balance: number;
+    bet_amount: number;
+};
+
 type GtmEvents = {
+    low_funds_shown: LowFundsEventProperties;
+    low_funds_closed: LowFundsEventProperties & {
+        close_method: ModalCloseMethod | 'deposit';
+    };
+    low_funds_deposit_clicked: LowFundsEventProperties;
     game_closed: {
         game_id: number;
         game_name: string;
