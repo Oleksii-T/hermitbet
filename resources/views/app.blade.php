@@ -7,7 +7,7 @@
         new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
         j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','GTM-MBQ39TMB');</script>
+        })(window,document,'script','dataLayer','{{ config('services.gtm.code') }}');</script>
         <!-- End Google Tag Manager -->
 
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,7 +23,7 @@
     </head>
     <body class="font-sans antialiased">
         <!-- Google Tag Manager (noscript) -->
-        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MBQ39TMB"
+        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ config('services.gtm.code') }}"
         height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <!-- End Google Tag Manager (noscript) -->
 
